@@ -130,6 +130,8 @@ def main():
         generate_batch(batch_size),
         steps_per_epoch=ceil(nitems / batch_size))
 
+    model.save('word2vec.h5')
+
 
 if __name__ == '__main__':
     main()
