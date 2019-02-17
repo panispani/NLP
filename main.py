@@ -55,7 +55,6 @@ def generate_training_data(sentences: List[List[str]]):
     return X, y, word_to_num
 
 def main():
-    stopwords = nltk.corpus.stopwords.words('english')
     words = brown.words()
 
     sentences = split_into_sentences(words)
