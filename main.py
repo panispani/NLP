@@ -4,6 +4,7 @@ from nltk.corpus import brown
 from typing import List
 import string
 from math import ceil
+import pickle
 
 import tensorflow as tf
 
@@ -84,7 +85,6 @@ def all_words():
 
     for f in nltk.corpus.gutenberg.fileids():
         words.extend(nltk.corpus.gutenberg.words(f))
-
     for f in nltk.corpus.reuters.fileids():
         words.extend(nltk.corpus.reuters.words(f))
 
@@ -119,6 +119,9 @@ def main():
     ]
 
     X, y, word_to_num = generate_training_data(sentences)
+
+    with open('dict.bin', 'wb') as f:
+        pickle.dump(word_to_num, f)
 
     X = np.array(X)
     y = np.array(y)
