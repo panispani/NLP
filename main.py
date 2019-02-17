@@ -78,8 +78,22 @@ def build_model(nclasses):
     return model
 
 
+def all_words():
+    words = []
+    words.extend(brown.words())
+
+    for f in nltk.corpus.gutenberg.fileids():
+        words.extend(nltk.corpus.gutenberg.words(f))
+
+    for f in nltk.corpus.reuters.fileids():
+        words.extend(nltk.corpus.reuters.words(f))
+
+    return words
+
+
 def main():
-    words = brown.words()
+
+    words = all_words()
 
     sentences = split_into_sentences(words)
 
