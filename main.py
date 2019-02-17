@@ -60,7 +60,7 @@ def build_model(nclasses):
 
     inputs = keras.layers.Input(shape=(nclasses, ))
 
-    X = keras.layers.Dense(16)(inputs)
+    X = keras.layers.Dense(256)(inputs)
 
     c1 = keras.layers.Dense(nclasses, activation='softmax')(X)
     c2 = keras.layers.Dense(nclasses, activation='softmax')(X)
