@@ -6,6 +6,8 @@ import string
 from math import ceil
 
 import tensorflow as tf
+
+import tensorflow.keras as keras
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation
@@ -34,25 +36,47 @@ def generate_training_data(sentences: List[List[str]]):
     X = []
     y = []
 
-    def register_sample(w, prev):
+    def register_sample(w, prevw, nextw):
         w = word_to_num[w]
-        prev = word_to_num[prev]
+        prevw = word_to_num[prevw]
+        nextw = word_to_num[nextw]
 
         X.append(w)
-        y.append(prev)
+        y.append((prevw, nextw))
 
 
     for s in sentences:
-        for i in range(1, len(s)):
+        for i in range(1, len(s) - 1):
             w = s[i]
-            prev = s[i - 1]
-            register_sample(w, prev)
-
-            # next = s[i + 1]
-            # register_sample(w, prev, next)
+            prevw = s[i - 1]
+            nextw = s[i + 1]
+            register_sample(w, prevw, nextw)
 
 
     return X, y, word_to_num
+
+
+def build_model(nclasses):
+
+    inputs = keras.layers.Input(shape=(nclasses, ))
+
+    X = keras.layers.Dense(16)(inputs)
+
+    c1 = keras.layers.Dense(nclasses, activation='softmax')(X)
+    c2 = keras.layers.Dense(nclasses, activation='softmax')(X)
+
+    model = keras.models.Model(inputs=inputs,
+                               outputs=[c1, c2],
+                               name='W2V')
+
+    model.compile(optimizer='adam',
+                  loss=[
+                      'sparse_categorical_crossentropy',
+                      'sparse_categorical_crossentropy'],
+                  metrics=['accuracy'])
+
+    return model
+
 
 def main():
     words = brown.words()
@@ -86,21 +110,12 @@ def main():
     y = np.array(y)
 
     nitems = X.shape[0]
-
     assert X.shape[0] == y.shape[0]
-
     nclasses = len(word_to_num.keys())
 
-    model = Sequential()
-    model.add(Dense(256, input_dim=nclasses))
+    model = build_model(nclasses)
 
-    model.add(Dense(nclasses, activation='softmax'))
-    # model.add(Activation('softmax'))
-
-    model.compile(optimizer='rmsprop',
-                  #loss='sparse_categorical_crossentropy',
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+    print(model.summary())
 
 
     def generate_batch(batch_size):
@@ -115,10 +130,9 @@ def main():
             chosen = indexes[at : next]
 
             Xnow = to_categorical(X[chosen], num_classes=nclasses)
-            ynow = to_categorical(y[chosen], num_classes=nclasses)
-            # ynow = y[chosen]
+            ynow = y[chosen]
 
-            yield Xnow, ynow
+            yield Xnow, (ynow[:, 0], ynow[:, 1])
 
             at = next
         return None
