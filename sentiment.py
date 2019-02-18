@@ -19,11 +19,13 @@ def main():
     model = keras.models.load_model('word2vec.h5')
 
     with open('dict.bin', 'rb') as f:
-        dict = pickle.load(f)
+        words = pickle.load(f)
+
+    weights = model.get_weights()[0].shape
 
 
-    X_neg = [movie_reviews.words(f) for f in movie_reviews.fileids('neg')]
-    X_pos = [movie_reviews.words(f) for f in movie_reviews.fileids('pos')]
+    # X_neg = [movie_reviews.words(f) for f in movie_reviews.fileids('neg')]
+    # X_pos = [movie_reviews.words(f) for f in movie_reviews.fileids('pos')]
 
 
 
