@@ -51,7 +51,6 @@ def generate_training_data(sentences: List[List[str]], context_len: int):
             w = s[i + context_len]
             register_sample(w, context, isen)
 
-
     return X, y, word_to_num
 
 
