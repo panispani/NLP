@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 import random
+import numpy as np
+import swifter
+import tqdm
 from bs4 import BeautifulSoup
 import string
 import re
 import pickle
 import pandas as pd
 import nltk
-from nltk.corpus import movie_reviews
 from typing import List
 import string
 from math import ceil
 
 import tensorflow as tf
-
 import tensorflow.keras as keras
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Activation
 
 import numpy as np
+
+kMaxWords = 100000
+kMaxSequenceLength = 40
 
 def get_word2vec():
     model = keras.models.load_model('word2vec.h5')
@@ -47,23 +48,73 @@ def make_clean_data():
 
         return text
 
-    df['text'] = df['text'].apply(normalize)
-
-    pd.options.display.max_colwidth = 100
-    print(df.sample(frac=0.4))
+    df['text'] = df['text'].swifter.apply(normalize)
 
     df.to_csv('datasets/clean_tweets.csv')
+
+def filter_for_nans(df):
+    def is_bad_fn(t):
+        return type(t) != type('str')
+
+    # In some rows, df['text'] is float instead of string.
+    # Simply drop the bad rows.
+    idx = np.argwhere(df['text'].apply(is_bad_fn)).flatten()
+    df.drop(labels=idx, inplace=True)
+
+
+def check_data(df):
+    for t in df['text']:
+        if type(t) != type('str'):
+            print(t)
+            print(type(t))
+            assert type(t) == type('str')
+
+
+def twitter_model():
+    inputs = keras.Input(shape=(kMaxSequenceLength, ))
+
+    X = inputs
+    X = keras.layers.Embedding(kMaxWords, 32, input_length=kMaxSequenceLength)(X)
+    X = keras.layers.LSTM(32)(X)
+    X = keras.layers.Dense(2)(X)
+
+    model = keras.models.Model(inputs=inputs, outputs=X, name='TwitterModel')
+
+    model.summary()
+    return model
+
 
 
 def main():
     random.seed(1337)
 
-    with open('dict.bin', 'rb') as f:
-        words = pickle.load(f)
+    # make_clean_data()
 
     df = pd.read_csv('datasets/clean_tweets.csv')
 
-    df['text'] = df['text']
+    # filter_for_nans(df)
+    # df.to_csv('datasets/clean_tweets.csv')
+
+    tokenizer = keras.preprocessing.text.Tokenizer(num_words=kMaxWords)
+    tokenizer.fit_on_texts(df['text'])
+
+    X = tokenizer.texts_to_sequences(df['text'])
+    X = keras.preprocessing.sequence.pad_sequences(
+            X,
+            maxlen=kMaxSequenceLength,
+            padding='post',
+            truncating='post')
+    y = np.array(df['sentiment'])
+    y[y == 4] = 1
+    y = keras.utils.to_categorical(y, num_classes=2)
+
+    print(X.shape)
+    print(y.shape)
+
+    model = twitter_model()
+    model.compile('adam', 'binary_crossentropy')
+
+    model.fit(X, y)
 
 
 if __name__ == '__main__':
