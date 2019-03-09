@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import random
+from pathlib import Path
 import numpy as np
 import swifter
 import tqdm
@@ -18,64 +19,17 @@ import tensorflow.keras as keras
 
 import numpy as np
 
-kMaxWords = 100000
-kMaxSequenceLength = 40
-
-def get_word2vec():
-    model = keras.models.load_model('word2vec.h5')
-    vector_for_word = model.get_weights()[0]
-    return vector_for_word
-
-def make_clean_data():
-    cols = ['sentiment', 'id', 'date', 'query_string', 'user', 'text']
-    df = pd.read_csv('./datasets/training.1600000.processed.noemoticon.csv',
-            encoding='ISO-8859-1', header=None, names=cols)
-    df.drop(['id', 'date', 'query_string', 'user'], axis=1, inplace=True)
-
-    wn = nltk.WordNetLemmatizer()
-
-    def normalize(text):
-        text = BeautifulSoup(text, 'lxml').get_text()
-        text = re.sub(r'@[a-zA-z_0-9]+', '', text)
-        text = re.sub(r'http(s)?://[a-zA-Z0-9./]+', '', text)
-        text = re.sub(r"'".format(string.punctuation), '', text)
-        text = re.sub(r'[{}]'.format(string.punctuation), ' ', text)
-        text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[0-9]+', '', text)
-        text = text.lower()
-        text = ''.join([c for c in text if c in string.printable])
-        text = wn.lemmatize(text)
-
-        return text
-
-    df['text'] = df['text'].swifter.apply(normalize)
-
-    df.to_csv('datasets/clean_tweets.csv')
-
-def filter_for_nans(df):
-    def is_bad_fn(t):
-        return type(t) != type('str')
-
-    # In some rows, df['text'] is float instead of string.
-    # Simply drop the bad rows.
-    idx = np.argwhere(df['text'].apply(is_bad_fn)).flatten()
-    df.drop(labels=idx, inplace=True)
-
-
-def check_data(df):
-    for t in df['text']:
-        if type(t) != type('str'):
-            print(t)
-            print(type(t))
-            assert type(t) == type('str')
+from util import *
 
 
 def twitter_model():
     inputs = keras.Input(shape=(kMaxSequenceLength, ))
 
     X = inputs
-    X = keras.layers.Embedding(kMaxWords, 32, input_length=kMaxSequenceLength)(X)
-    X = keras.layers.LSTM(32)(X)
+    X = keras.layers.Embedding(kMaxWords, 128, input_length=kMaxSequenceLength)(X)
+    X = keras.layers.Dropout(1 / 4)(X)
+    X = keras.layers.Conv1D(64, 5, strides=1, padding='valid', activation='relu')(X)
+    X = keras.layers.LSTM(64)(X)
     X = keras.layers.Dense(2)(X)
 
     model = keras.models.Model(inputs=inputs, outputs=X, name='TwitterModel')
@@ -83,38 +37,28 @@ def twitter_model():
     model.summary()
     return model
 
-
-
 def main():
-    random.seed(1337)
+    prepare_data()
 
-    # make_clean_data()
+    X_train, X_test, y_train, y_test = load_final_data()
 
-    df = pd.read_csv('datasets/clean_tweets.csv')
+    assert X_train.shape[0] == y_train.shape[0]
+    assert X_test.shape[0] == y_test.shape[0]
 
-    # filter_for_nans(df)
-    # df.to_csv('datasets/clean_tweets.csv')
+    print('Training on {}, validating on {}'.format(X_train.shape[0], X_test.shape[0]))
 
-    tokenizer = keras.preprocessing.text.Tokenizer(num_words=kMaxWords)
-    tokenizer.fit_on_texts(df['text'])
 
-    X = tokenizer.texts_to_sequences(df['text'])
-    X = keras.preprocessing.sequence.pad_sequences(
-            X,
-            maxlen=kMaxSequenceLength,
-            padding='post',
-            truncating='post')
-    y = np.array(df['sentiment'])
-    y[y == 4] = 1
-    y = keras.utils.to_categorical(y, num_classes=2)
+    if Path('model.bin').exists():
+        model = keras.models.load_model('model.bin')
+        print('Loaded model from disk.')
+    else:
+        model = twitter_model()
 
-    print(X.shape)
-    print(y.shape)
+    model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
 
-    model = twitter_model()
-    model.compile('adam', 'binary_crossentropy')
+    model.fit(X_train, y_train, validation_data=(X_test, y_test))
 
-    model.fit(X, y)
+    model.save('model.bin')
 
 
 if __name__ == '__main__':
